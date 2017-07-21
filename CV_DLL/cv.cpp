@@ -45,23 +45,43 @@ extern "C"
 			std::vector<double> rotation_vector(3), translation_vector(3);
 
 			Processing::instance()->perform_probabilistic_hough_transform(points, mat);
-			Processing::instance()->approximate_quadrilateral(quad, points);
+			Processing::instance()->approximate_polygon(quad, points);
 			Processing::instance()->estimate_quadrilateral_pose(rotation_vector, translation_vector, quad, m_camera_matrix, m_distortion_coefficients, m_target_width, m_target_height);
-
+			
 			if (quad.size() == 4)
 			{
-				Utility::draw_polygon(mat, quad, Utility::GREEN);
-				
-				_image_data = mat.data;
+				cv::circle(mat, quad[0], 3, cv::Scalar(255, 0, 0), -1);
+				cv::circle(mat, quad[1], 3, cv::Scalar(0, 255, 0), -1);
+				cv::circle(mat, quad[2], 3, cv::Scalar(0, 0, 255), -1);
+				cv::circle(mat, quad[3], 3, cv::Scalar(255, 255, 0), -1);
 
-				return Processing::instance()->apply_data_to_out_datastructures(_corners, _out_rvec, _out_tvec, rotation_vector, translation_vector, quad);
+				std::vector< cv::Point3f > axisPoints;
+				axisPoints.push_back(cv::Point3f(0, 0, 0));
+				axisPoints.push_back(cv::Point3f(-0.1, 0, 0)); // i have no clue why the f*** this points to the left if unsigned
+				axisPoints.push_back(cv::Point3f(0, 0.1, 0));
+				axisPoints.push_back(cv::Point3f(0, 0, -0.1)); // z - axis points into the room not towards the screen
+				std::vector< cv::Point2f > imagePoints;
+
+				cv::projectPoints(axisPoints, rotation_vector, translation_vector, m_camera_matrix, m_distortion_coefficients, imagePoints);
+
+				// draw axis lines
+				line(mat, imagePoints[0], imagePoints[1], cv::Scalar(0, 0, 255), 3);
+				line(mat, imagePoints[0], imagePoints[2], cv::Scalar(0, 255, 0), 3);
+				line(mat, imagePoints[0], imagePoints[3], cv::Scalar(255, 0, 0), 3);
+
+				Utility::draw_polygon(mat, quad, Utility::GREEN);
+				_image_data = mat.data;
+			
+				//return Processing::instance()->apply_data_to_out_datastructures(_corners, _out_rvec, _out_tvec, rotation_vector, translation_vector, quad);
+			
+				return 1;
 			}
 			else
 			{
 				_image_data = mat.data;
 
 				return 1;
-			}
+			}			
 		}		
 		
 		return 2;

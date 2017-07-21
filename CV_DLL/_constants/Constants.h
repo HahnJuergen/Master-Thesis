@@ -19,10 +19,10 @@ namespace cnst
 	{
 		static float REJECTION_ANGLE = 15.0f;
 
-		static cv::Scalar LOWER_COLOR_INTERVAL_BOUND(60 - 35, 110, 110);
-		static cv::Scalar UPPER_COLOR_INTERVAL_BOUND(60 + 35, 255, 255);
+		static cv::Scalar LOWER_COLOR_INTERVAL_BOUND(60 - 30, 110, 110);
+		static cv::Scalar UPPER_COLOR_INTERVAL_BOUND(60 + 30, 255, 255);
 
-		static float ARC_LENGTH_MULTIPLICATOR = 0.025f;
+		static float ARC_LENGTH_MULTIPLICATOR = 0.1f;
 
 		static int SUFFICIENT_NUMBER_CORNERS = 4;
 
@@ -35,6 +35,5 @@ namespace cnst
 			static double MAX_GAP_LINE = 15.0;
 		}
 	}
-
 }
 #endif /* CV_PROCESSING_API_CONSTANTS_H_ */
