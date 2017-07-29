@@ -17,10 +17,10 @@ namespace Utility
 	{
 		switch (_color)
 		{
-		case RED: return cv::Scalar(255, 0, 0);
-		case GREEN: return cv::Scalar(0, 255, 0);
-		case BLUE: return cv::Scalar(0, 0, 255);
-		case YELLOW: return cv::Scalar(255, 255, 0);
+			case RED: return cv::Scalar(255, 0, 0);
+			case GREEN: return cv::Scalar(0, 255, 0);
+			case BLUE: return cv::Scalar(0, 0, 255);
+			case YELLOW: return cv::Scalar(255, 255, 0);
 		}
 	}
 
@@ -37,7 +37,7 @@ namespace Utility
 	template <typename _T>
 	inline void draw_polygon(cv::Mat & _image, std::vector<_T> const & _polygon, Color const & _color)
 	{
-		for (size_t i = 0; i < _polygon.size(); i++)
+		for (uint32_t i = 0; i < _polygon.size(); i++)
 			draw_line(_image, _polygon[i], _polygon[(i + 1) % _polygon.size()], _color);
 	}
 }

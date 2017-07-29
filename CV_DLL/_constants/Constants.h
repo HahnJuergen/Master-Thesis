@@ -28,9 +28,9 @@ namespace cnst
 
 		namespace hough
 		{
-			static int RHO = 1;
+			static uint32_t RHO = 1;
 			static double THETA = cnst::math::PI / (cnst::math::RIGHT_ANGLE * 2);
-			static int THRESHOLD = 35;
+			static uint32_t THRESHOLD = 35;
 			static double MIN_LENGTH_LINE = 20.0;
 			static double MAX_GAP_LINE = 15.0;
 		}

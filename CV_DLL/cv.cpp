@@ -5,7 +5,7 @@ extern "C"
 {
 	print_function m_debug;
 
-	int m_image_width, m_image_height;
+	uint32_t m_image_width, m_image_height;
 
 	cv::Mat m_camera_matrix;
 	cv::Mat m_distortion_coefficients;
@@ -15,7 +15,7 @@ extern "C"
 
 	bool m_is_initialized = false;
 
-	CV_PROCESSING_API int initialize(int const _width, int const _height)
+	CV_PROCESSING_API uint32_t initialize(uint32_t const _width, uint32_t const _height)
 	{
 		if (!m_is_initialized)
 		{
@@ -32,69 +32,36 @@ extern "C"
 		return 1;
 	}
 
-	CV_PROCESSING_API int process(unsigned char * _image_data, float * _corners, float * _out_rvec, float * _out_tvec)
+	CV_PROCESSING_API uint32_t process(byte * _image_data, float * _out_corners, float * _out_rvec, float * _out_tvec, uint32_t const _accuracy)
 	{
 		if (m_is_initialized)
 		{
 			cv::Mat mat = cv::Mat(m_image_height, m_image_width, CV_8UC3, _image_data, m_image_width * 3);
 
 			std::vector<cv::Point> points;
-
 			std::vector<cv::Point2d> quad;
 
+			Quaternion<double> rotation;
 			std::vector<double> rotation_vector(3), translation_vector(3);
 
 			Processing::instance()->perform_probabilistic_hough_transform(points, mat);
-			Processing::instance()->approximate_polygon(quad, points);
-			Processing::instance()->estimate_quadrilateral_pose(rotation_vector, translation_vector, quad, m_camera_matrix, m_distortion_coefficients, m_target_width, m_target_height);
+			Processing::instance()->approximate_polygon(quad, points, _accuracy);
+			Processing::instance()->estimate_quadrilateral_pose(rotation, translation_vector, quad, m_camera_matrix, m_distortion_coefficients, m_target_width, m_target_height);
 			
-			if (quad.size() == 4)
-			{
-				cv::circle(mat, quad[0], 3, cv::Scalar(255, 0, 0), -1);
-				cv::circle(mat, quad[1], 3, cv::Scalar(0, 255, 0), -1);
-				cv::circle(mat, quad[2], 3, cv::Scalar(0, 0, 255), -1);
-				cv::circle(mat, quad[3], 3, cv::Scalar(255, 255, 0), -1);
-
-				std::vector< cv::Point3f > axisPoints;
-				axisPoints.push_back(cv::Point3f(0, 0, 0));
-				axisPoints.push_back(cv::Point3f(-0.1, 0, 0)); // i have no clue why the f*** this points to the left if unsigned
-				axisPoints.push_back(cv::Point3f(0, 0.1, 0));
-				axisPoints.push_back(cv::Point3f(0, 0, -0.1)); // z - axis points into the room not towards the screen
-				std::vector< cv::Point2f > imagePoints;
-
-				cv::projectPoints(axisPoints, rotation_vector, translation_vector, m_camera_matrix, m_distortion_coefficients, imagePoints);
-
-				// draw axis lines
-				line(mat, imagePoints[0], imagePoints[1], cv::Scalar(0, 0, 255), 3);
-				line(mat, imagePoints[0], imagePoints[2], cv::Scalar(0, 255, 0), 3);
-				line(mat, imagePoints[0], imagePoints[3], cv::Scalar(255, 0, 0), 3);
-
-				Utility::draw_polygon(mat, quad, Utility::GREEN);
-				_image_data = mat.data;
-			
-				//return Processing::instance()->apply_data_to_out_datastructures(_corners, _out_rvec, _out_tvec, rotation_vector, translation_vector, quad);
-			
-				return 1;
-			}
-			else
-			{
-				_image_data = mat.data;
-
-				return 1;
-			}			
+			return Processing::instance()->apply_data_to_out_datastructures(_out_corners, _out_rvec, _out_tvec, rotation, translation_vector, quad);
 		}		
 		
 		return 2;
 	}	
 
-	CV_PROCESSING_API int set_debug_print(print_function _function_pointer)
+	CV_PROCESSING_API uint32_t set_debug_print(print_function _function_pointer)
 	{
 		m_debug = _function_pointer;
 
 		return 0;
 	}	
 
-	CV_PROCESSING_API int is_lib_initialized()
+	CV_PROCESSING_API uint32_t is_lib_initialized()
 	{
 		return m_is_initialized ? 1 : 0;
 	}
