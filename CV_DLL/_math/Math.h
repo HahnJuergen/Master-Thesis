@@ -20,7 +20,7 @@ public:
 	template<typename _T1, typename _T2>
 	inline _T1 const angle_degrees(_T2 const & _p, _T2 const & _q)
 	{
-		return (_T1)(std::acos(_p.dot(_q) / (vector_norm2<_T1, _T2>(_p) * vector_norm2<_T1, _T2>(_q))) * (cnst::math::RIGHT_ANGLE * 2) / cnst::math::PI);
+		return (_T1)(std::acos(_p.dot(_q) / (vector_norm2<_T1, _T2>(_p) * vector_norm2<_T1, _T2>(_q))) * (RIGHT_ANGLE * 2) / PI);
 	}
 
 	template <typename _T1, typename _T2>
@@ -45,6 +45,18 @@ public:
 	inline _T1 const cross(_T2 const & _p, _T2 const & _q)
 	{
 		return (_T1) (_p.x * _q.y - _p.y * _q.x);
+	}
+
+	template <typename _T>
+	inline void const normalize2(_T & _vector)
+	{	
+		_vector /= vector_norm2<float, _T>(_vector);
+	}
+
+	template <typename _T>
+	inline void const normalize3(_T & _vector)
+	{
+		_vector /= vector_norm3<float, _T>(_vector);
 	}
 
 	template <typename _T>
@@ -79,58 +91,83 @@ public:
 	_T x, y, z, w;
 
 	Quaternion() {}
-	Quaternion(_T _x, _T _y, _T _z, _T _w)
-		: x(_x), y(_y), z(_z), w(_w) {}
+	Quaternion(_T _x, _T _y, _T _z, _T _w) : x(_x), y(_y), z(_z), w(_w) {}
 
 	~Quaternion() {}
 
 	template<typename __T>
 	static Quaternion const from_rodrigues_axis_angle(std::vector<__T> const & _vector)
-	{
-		cv::Mat R(3, 3, CV_64FC1);
+	{	
+		cv::Point3f v(_vector[0], _vector[1], _vector[2]);
+		
+		float angle = Math::instance()->vector_norm3<float, cv::Point3f>(v) * 0.5f;
+		float s = std::sin(angle);
 
-		cv::Rodrigues(_vector, R);
+		Math::instance()->normalize3<cv::Point3f>(v);
 
-		return Quaternion::from_rotation_matrix(R);
+		Quaternion<__T> q(v.x * s, v.y * s, v.z * s, std::cos(angle));
+		q.normalize();
+
+		return q;
 	}
 
 	template<typename __T>
 	static Quaternion const from_rotation_matrix(__T const & _R)
 	{
-		float m11 = _R.at<double>(0, 0); float m12 = _R.at<double>(0, 1); float m13 = _R.at<double>(0, 2);
-		float m21 = _R.at<double>(1, 0); float m22 = _R.at<double>(1, 1); float m23 = _R.at<double>(1, 2);
-		float m31 = _R.at<double>(2, 0); float m32 = _R.at<double>(2, 1); float m33 = _R.at<double>(2, 2);
+		float const & r11 = _R.at<double>(0, 0); float const & r12 = _R.at<double>(0, 1); float const & r13 = _R.at<double>(0, 2);
+		float const & r21 = _R.at<double>(1, 0); float const & r22 = _R.at<double>(1, 1); float const & r23 = _R.at<double>(1, 2);
+		float const & r31 = _R.at<double>(2, 0); float const & r32 = _R.at<double>(2, 1); float const & r33 = _R.at<double>(2, 2);
 		
-		float w_ = std::sqrt(1 + m11 + m22 + m33) / 2;
-		float x_ = std::sqrt(1 + m11 - m22 - m33) / 2;
-		float y_ = std::sqrt(1 - m11 + m22 - m33) / 2;
-		float z_ = std::sqrt(1 - m11 - m22 + m33) / 2;
+		float w_ = std::sqrt(1 + r11 + r22 + r33) * 0.5f;
+		float x_ = std::sqrt(1 + r11 - r22 - r33) * 0.5f;
+		float y_ = std::sqrt(1 - r11 + r22 - r33) * 0.5f;
+		float z_ = std::sqrt(1 - r11 - r22 + r33) * 0.5f;
 
-		x_ = _copysign(x_, m32 - m23);
-		y_ = _copysign(y_, m13 - m31);
-		z_ = _copysign(z_, m21 - m12);
+		x_ = _copysign(x_, r32 - r23);
+		y_ = _copysign(y_, r13 - r31);
+		z_ = _copysign(z_, r21 - r12);
 
 		return Quaternion(x_, y_, z_, w_);
+	} 	
+
+	template<typename __T> 
+	__T const norm()
+	{
+		return (__T) std::sqrt(this->x * this->x + this->y * this->y + this->z * this->z + this->w * this->w);
 	}
 
-	template <typename __T>
-	void const to_vector(std::vector<__T> & _vector) const
+	template<typename __T>
+	Quaternion<__T> & operator /= (__T _divisor)
 	{
-		_vector = std::vector<_S>(4);
+		this->x /= _divisor;
+		this->y /= _divisor;
+		this->z /= _divisor;
+		this->w /= _divisor;
 
-		_vector[0] = (__T) this->x;
-		_vector[1] = (__T) this->y;
-		_vector[2] = (__T) this->z;
-		_vector[3] = (__T) this->w;
+		return (* this);
 	}
 
-	template <typename __T>
-	void const to_pointer(__T * _pointer) const
+	template<typename __T>
+	void operator >> (__T * _p) const
 	{
-		_pointer[0] = (__T) this->x;
-		_pointer[1] = (__T) this->y;
-		_pointer[2] = (__T) this->z;
-		_pointer[3] = (__T) this->w;
+		_p[0] = (__T) this->x;
+		_p[1] = (__T) this->y;
+		_p[2] = (__T) this->z;
+		_p[3] = (__T) this->w;
+	}
+
+	template<typename __T>
+	void operator >> (std::vector<__T> & _p) const
+	{
+		_p[0] = (__T) this->x;
+		_p[1] = (__T) this->y;
+		_p[2] = (__T) this->z;
+		_p[3] = (__T) this->w;
+	}
+
+	void normalize()
+	{
+		(* this) /= this->norm<_T>();
 	}
 
 private:

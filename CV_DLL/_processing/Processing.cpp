@@ -68,25 +68,25 @@ void Processing::approximate_polygon(std::vector<cv::Point2d> & _quadrilateral, 
 
 void Processing::estimate_quadrilateral_pose(Quaternion<double> & _rotation, std::vector<double> & _translation_vector, std::vector<cv::Point2d> const & _quadrilateral, cv::Mat const & _camera_matrix, cv::Mat const & _distortion_coefficients, float const _target_width, float const _target_height)
 {
-	if (_quadrilateral.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_quadrilateral.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		cv::Mat object_points(4, 1, CV_32FC3);
 		std::vector<double> rotation_vector(3);
 
 		this->_generate_object_points(object_points, _target_width, _target_height);
 		this->_estimate_rotation_vector_and_translation_vector(rotation_vector, _translation_vector, object_points, _quadrilateral, _camera_matrix, _distortion_coefficients);
-		this->_rodrigues_rotation_vector_to_quaternion(_rotation, rotation_vector);
+		
+		_rotation = Quaternion<double>::from_rodrigues_axis_angle(rotation_vector);
 	}
 }
 
-uint32_t Processing::apply_data_to_out_datastructures(float * _out_corners, float * _out_rvec, float * _out_tvec, Quaternion<double> const & _rotation, std::vector<double> const & _translation_vector, std::vector<cv::Point2d> const & _quadrilateral)
+uint32_t Processing::apply_data_to_out_datastructures(float * _out_quaternion, float * _out_tvec, Quaternion<double> const & _rotation, std::vector<double> const & _translation_vector, std::vector<cv::Point2d> const & _quadrilateral)
 {
-	if (_quadrilateral.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_quadrilateral.size() == SUFFICIENT_NUMBER_CORNERS)
 	{		
-		_rotation.to_pointer<float>(_out_rvec);
+		_rotation >> _out_quaternion;
 
 		this->_vector_to_pointer(_out_tvec, _translation_vector);
-		this->_point_vector_to_pointer<float, cv::Point2d, 2>(_out_corners, _quadrilateral);
 
 		return 0;
 	}
@@ -98,7 +98,7 @@ uint32_t Processing::apply_data_to_out_datastructures(float * _out_corners, floa
 
 void Processing::_convex_hull(std::vector<cv::Point> & _hull, std::vector<cv::Point> const & _points)
 {
-	if (_points.size() > (cnst::processing::SUFFICIENT_NUMBER_CORNERS - 1))
+	if (_points.size() > (SUFFICIENT_NUMBER_CORNERS - 1))
 		cv::convexHull(_points, _hull);
 }
 
@@ -122,7 +122,7 @@ void Processing::_approximate_quadrilateral(std::vector<cv::Point2d> & _quadrila
 
 void Processing::_compute_edges(std::vector<cv::Vec4d> & _edges, std::vector<cv::Point> const & _hull, std::vector<cv::Point2d> const & _quadrilateral)
 {
-	if (_quadrilateral.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_quadrilateral.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		std::vector<std::vector<cv::Point>> edges;
 
@@ -151,19 +151,19 @@ void Processing::_retrieve_points_of_edges(std::vector<std::vector<cv::Point>> &
 		}
 	}
 
-	if (_edges.size() == 5)
+	if (_edges.size() == SUFFICIENT_NUMBER_CORNERS + 1)
 		_edges.erase(_edges.begin());
 }
 
 void Processing::_fit_edge_line(std::vector<cv::Vec4d> & _fit_edges, std::vector<std::vector<cv::Point>> const & _edges)
 {
-	if (_edges.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_edges.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		for (auto e = _edges.begin(); e != _edges.end(); ++e)
 		{
 			cv::Vec4d line;
 
-			cv::fitLine(* e, line, cv::DIST_WELSCH, 0, 0.01, 0.01);
+			cv::fitLine(* e, line, cv::DIST_WELSCH, CHOOSE_OPTIMAL, EPSILON_RADIUS, EPSILON_ANGLE);
 
 			_fit_edges.push_back(line);
 		}
@@ -172,12 +172,10 @@ void Processing::_fit_edge_line(std::vector<cv::Vec4d> & _fit_edges, std::vector
 
 void Processing::_accumulate_convex_hull(std::vector<cv::Point> & _hull, std::vector<cv::Point> const & _intersections)
 {
-	if (_intersections.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_intersections.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
-		_hull.push_back(_intersections[0]);
-		_hull.push_back(_intersections[1]);
-		_hull.push_back(_intersections[2]);
-		_hull.push_back(_intersections[3]);
+		for (auto it = _intersections.begin(); it != _intersections.end(); ++it)
+			_hull.push_back(*it);		
 
 		cv::convexHull(_hull, _hull);
 	}	
@@ -185,16 +183,16 @@ void Processing::_accumulate_convex_hull(std::vector<cv::Point> & _hull, std::ve
 
 void Processing::_approximate_polygon_from_convex_hull(std::vector<cv::Point2d> & _quadrilateral, std::vector<cv::Point> const & _hull)
 {
-	if (_hull.size() > cnst::processing::SUFFICIENT_NUMBER_CORNERS - 1)
+	if (_hull.size() > SUFFICIENT_NUMBER_CORNERS - 1)
 	{
-		double epsilon = cnst::processing::ARC_LENGTH_MULTIPLICATOR * cv::arcLength(_hull, true);
+		double epsilon = ARC_LENGTH_MULTIPLICATOR * cv::arcLength(_hull, true);
 		cv::approxPolyDP(_hull, _quadrilateral, epsilon, true);
 	}	
 }
 
 void Processing::_unify_quadrilateral_corner_descriptors(std::vector<cv::Point2d> & _quadrilateral)
 {
-	if (_quadrilateral.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_quadrilateral.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		cv::Point2d tlc, blc, brc, trc;
 
@@ -214,19 +212,19 @@ void Processing::_unify_quadrilateral_corner_descriptors(std::vector<cv::Point2d
 
 void Processing::_evaluate_detection_rejection(std::vector<cv::Point2d> & _quadrilateral)
 {
-	if (_quadrilateral.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_quadrilateral.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		float a = Math::instance()->angle_degrees<float, cv::Point2d>(_quadrilateral[3] - _quadrilateral[0], _quadrilateral[1] - _quadrilateral[0]);
 		float b = Math::instance()->angle_degrees<float, cv::Point2d>(_quadrilateral[0] - _quadrilateral[1], _quadrilateral[2] - _quadrilateral[1]);
 		float c = Math::instance()->angle_degrees<float, cv::Point2d>(_quadrilateral[1] - _quadrilateral[2], _quadrilateral[3] - _quadrilateral[2]);
 		float d = Math::instance()->angle_degrees<float, cv::Point2d>(_quadrilateral[0] - _quadrilateral[3], _quadrilateral[2] - _quadrilateral[3]);
 
-		float diff_a = std::abs(cnst::math::RIGHT_ANGLE - a);
-		float diff_b = std::abs(cnst::math::RIGHT_ANGLE - b);
-		float diff_c = std::abs(cnst::math::RIGHT_ANGLE - c);
-		float diff_d = std::abs(cnst::math::RIGHT_ANGLE - d);
+		float diff_a = std::abs(RIGHT_ANGLE - a);
+		float diff_b = std::abs(RIGHT_ANGLE - b);
+		float diff_c = std::abs(RIGHT_ANGLE - c);
+		float diff_d = std::abs(RIGHT_ANGLE - d);
 
-		if (((diff_a + diff_b + diff_c + diff_d) / _quadrilateral.size()) > cnst::processing::REJECTION_ANGLE)
+		if (((diff_a + diff_b + diff_c + diff_d) / _quadrilateral.size()) > REJECTION_ANGLE)
 			_quadrilateral.clear();
 	}
 	else	
@@ -237,9 +235,9 @@ void Processing::_hough_transform(std::vector<cv::Vec4i> & _lines, cv::Mat const
 {
 	cv::Mat dst;
 
-	cv::GaussianBlur(_image, _image, cv::Size(11, 11), 0, 0);
-	cv::inRange(_image, cnst::processing::LOWER_COLOR_INTERVAL_BOUND, cnst::processing::UPPER_COLOR_INTERVAL_BOUND, dst);
-	cv::HoughLinesP(dst, _lines, cnst::processing::hough::RHO, cnst::processing::hough::THETA, cnst::processing::hough::THRESHOLD, cnst::processing::hough::MIN_LENGTH_LINE, cnst::processing::hough::MAX_GAP_LINE);
+	cv::GaussianBlur(_image, _image, BLURRING_KERNEL_SIZE, SIGMA_X, SIGMA_Y);
+	cv::inRange(_image, LOWER_COLOR_INTERVAL_BOUND, UPPER_COLOR_INTERVAL_BOUND, dst);
+	cv::HoughLinesP(dst, _lines, RHO, THETA, THRESHOLD, MIN_LENGTH_LINE, MAX_GAP_LINE);
 }
 
 void Processing::_hough_lines_points(std::vector<cv::Point> & _points, std::vector<cv::Vec4i> const & _lines)
@@ -268,11 +266,6 @@ void Processing::_estimate_rotation_vector_and_translation_vector(std::vector<do
 	this->_matrix_to_vector(_translation_vector, tvec);
 }
 
-void Processing::_rodrigues_rotation_vector_to_quaternion(Quaternion<double> & _rotation, std::vector<double> const & _rotation_vector)
-{
-	_rotation = Quaternion<double>::from_rodrigues_axis_angle(_rotation_vector);
-}
-
 void Processing::_matrix_to_vector(std::vector<double> & _vector, cv::Mat const & _matrix)
 {
 	for (uint32_t i = 0; i < _matrix.cols; i++)
@@ -282,23 +275,21 @@ void Processing::_matrix_to_vector(std::vector<double> & _vector, cv::Mat const 
 
 bool Processing::_intersect_fitted_edges(std::vector<cv::Point> & _intersections, std::vector<cv::Vec4d> const & _fit_edges)
 {
-	if (_fit_edges.size() == cnst::processing::SUFFICIENT_NUMBER_CORNERS)
+	if (_fit_edges.size() == SUFFICIENT_NUMBER_CORNERS)
 	{
 		cv::Point p, q, r, s;
 
-		int t = 450;
+		cv::Point p0(_fit_edges[0][2] - _fit_edges[0][0], _fit_edges[0][3] - _fit_edges[0][1]);
+		cv::Point q0(_fit_edges[0][2] + _fit_edges[0][0], _fit_edges[0][3] + _fit_edges[0][1]);
 
-		cv::Point p0(_fit_edges[0][2] - t * _fit_edges[0][0], _fit_edges[0][3] - t * _fit_edges[0][1]);
-		cv::Point q0(_fit_edges[0][2] + t * _fit_edges[0][0], _fit_edges[0][3] + t * _fit_edges[0][1]);
+		cv::Point p1(_fit_edges[1][2] - _fit_edges[1][0], _fit_edges[1][3] - _fit_edges[1][1]);
+		cv::Point q1(_fit_edges[1][2] + _fit_edges[1][0], _fit_edges[1][3] + _fit_edges[1][1]);
 
-		cv::Point p1(_fit_edges[1][2] - t * _fit_edges[1][0], _fit_edges[1][3] - t * _fit_edges[1][1]);
-		cv::Point q1(_fit_edges[1][2] + t * _fit_edges[1][0], _fit_edges[1][3] + t * _fit_edges[1][1]);
+		cv::Point p2(_fit_edges[2][2] - _fit_edges[2][0], _fit_edges[2][3] - _fit_edges[2][1]);
+		cv::Point q2(_fit_edges[2][2] + _fit_edges[2][0], _fit_edges[2][3] + _fit_edges[2][1]);
 
-		cv::Point p2(_fit_edges[2][2] - t * _fit_edges[2][0], _fit_edges[2][3] - t * _fit_edges[2][1]);
-		cv::Point q2(_fit_edges[2][2] + t * _fit_edges[2][0], _fit_edges[2][3] + t * _fit_edges[2][1]);
-
-		cv::Point p3(_fit_edges[3][2] - t * _fit_edges[3][0], _fit_edges[3][3] - t * _fit_edges[3][1]);
-		cv::Point q3(_fit_edges[3][2] + t * _fit_edges[3][0], _fit_edges[3][3] + t * _fit_edges[3][1]);
+		cv::Point p3(_fit_edges[3][2] - _fit_edges[3][0], _fit_edges[3][3] - _fit_edges[3][1]);
+		cv::Point q3(_fit_edges[3][2] + _fit_edges[3][0], _fit_edges[3][3] + _fit_edges[3][1]);
 
 		if (!Math::instance()->intersection(p, p0, q0, p1, q1)
 			|| !Math::instance()->intersection(q, p0, q0, p3, q3)
